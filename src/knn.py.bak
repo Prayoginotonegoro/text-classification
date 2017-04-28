@@ -1,0 +1,174 @@
+from __future__ import division
+
+import csv
+import random
+import math
+import operator
+from datetime import datetime
+import string
+
+import numpy as np
+import nltk
+
+tokenize = lambda doc: doc.lower().split(" ")
+
+def idf(term, comments):
+    comments = [tokenize(d) for d in comments]
+    contains_term = map(lambda comm: term in comm, comments)
+    if sum(contains_term) != 0:
+        return 1 + math.log(len(comments)/(sum(contains_term)))
+    else:
+        return 1
+
+def norm_tf(term, comment):
+    return comment.count(term)/ len(comment)
+
+def createFeatures(comments, dictionary):
+    dataset = []
+    idftable = {}
+    print "#1: Entered Create Features- ", len(comments), len(dictionary)
+    for word in dictionary:
+        idftable[word] = idf(word, comments)
+
+    print "#2: idftable created - ", len(idftable)
+
+    for comment in comments:
+        features = []
+        for word in dictionary:
+            features.append(norm_tf(word,comment) * idftable[word])
+        dataset.append(features)
+    
+    print "#3: features created - ", dataset
+    return dataset
+
+def createFeatures_scikit(comments,dictionary)
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    sklearn_tfidf = TfidfVectorizer(min_df=0,sublinear_tf=True, vocabulary = dictionary, tokenizer=tokenize)
+    return sklearn_tfidf.fit_transform(comments)
+
+
+def loadInputSet(dataset, split, trainInput=[], cvInput=[], trainIndex = [], cvIndex = []):
+    random.seed(datetime.now())
+
+    for x in range(len(dataset)):
+        #dataset[x] = convert_features(dataset[x])
+        if random.random() < split:
+            trainInput.append(dataset[x])
+            trainIndex.append(x)
+        else:
+            cvInput.append(dataset[x])
+            cvIndex.append(x)
+
+def loadOutputSet(filename, trainIndex, cvIndex, trainOutput=[], cvOutput=[]):
+    with open(filename, 'rb') as csvfile:
+        lines = csv.reader(csvfile)
+        dataset = list(lines)
+        trainOutput += list(dataset[i] for i in trainIndex)
+        cvOutput += list(dataset[i] for i in cvIndex)
+
+def euclideanDistance(instance1, instance2):
+    distance = 0
+    for x in range(len(instance1)):
+        distance += pow((instance1[x] - instance2[x]), 2)
+    return math.sqrt(distance)
+
+def cosineDistance(vec1, vec2):
+    intersection = set(vec1.keys()) & set(vec2.keys())
+    numerator = sum([vec1[x] * vec2[x] for x in intersection])
+
+    sum1 = sum([vec1[x]**2 for x in vec1.keys()])
+    sum2 = sum([vec2[x]**2 for x in vec2.keys()])
+    denominator = math.sqrt(sum1) * math.sqrt(sum2)
+
+    if not denominator:
+        return 0.0
+    else:
+        return float(numerator) / denominator
+
+def getNeighbors(trainInput, testInstance, k):
+    distances = []
+    for x in range(len(trainInput)):
+        dist = euclideanDistance(testInstance, trainInput[x])
+        distances.append((x, dist))
+    distances.sort(key=operator.itemgetter(1))
+    neighbors = []
+
+    for i in range(k):
+        neighbors.append(distances[i][0])
+    return neighbors
+
+def getResponse(neighbors, trainOutput):
+    classVotes = {}
+
+    for x in neighbors:
+        response = trainOutput[x] 
+        if response in classVotes:
+            classVotes[response] += 1
+        else:
+            classVotes[response] = 1
+    sortedVotes = sorted(classVotes.iteritems(), key=operator.itemgetter(1), reverse=True)
+    return sortedVotes[0][0]
+
+def getAccuracy(cvOutput, predictions):
+    correct = 0
+    for x in range(len(cvOutput)):
+        if cvOutput[x] == predictions[x]:
+            correct += 1
+    return (correct/float(len(cvOutput))) * 100.0
+    
+def main():
+    # prepare data
+    accList = []
+
+    split = 0.70
+     
+    k = 0 
+    NumIterations = 10
+    
+    with open('../csv_files/train_input_processed.csv', 'rb') as csvfile:
+        lines = csv.reader(csvfile)
+        dataset1 = list(lines)
+
+    with open('../csv_files/dictionary_10000.csv', 'rb') as csvfile:
+        lines = csv.reader(csvfile)
+        dataset2 = list(lines)
+
+    dataset1 = createFeatures([row[1] for row in dataset1[1:10000][:]], [item for sublist in dataset2 for item in sublist])
+   
+    ''' 
+    with open('../csv_files/train_output.csv', 'rb') as csvfile:
+        lines = csv.reader(csvfile)
+        dataset3 = list(lines)
+
+    for iteration in range(NumIterations):
+
+        trainInput=[]
+        cvInput=[]
+        trainIndex=[]
+        cvIndex=[]
+        trainOutput=[]
+        cvOutput=[]
+
+        loadInputSet(dataset1, split, trainInput, cvInput, trainIndex, cvIndex)
+        loadOutputSet(dataset3, trainIndex, cvIndex, trainOutput, cvOutput)
+        
+        print 'Size of Train set: ' + repr(len(trainIndex))
+        print 'Size of Validation set: ' + repr(len(cvIndex))
+        # generate predictions
+        predictions=[]
+        k += 1
+        print "#1: ", trainOutput, cvOutput
+        for x in range(len(cvIndex)):
+            neighbors = getNeighbors(trainInput, cvInput[x], k)
+            result = getResponse(neighbors, trainOutput)
+            predictions.append(result)
+            #print('> predicted=' + repr(result) + ', actual=' + repr(validationSet[x][-1]))
+
+        accuracy = getAccuracy(cvOutput, predictions)
+        accList.append((k, accuracy))
+        print('Accuracy: ' + repr(accuracy) + '%')
+    
+    print('\n'.join('{}: {}'.format(*k) for k in enumerate(accList)))
+    '''
+    
+main()
